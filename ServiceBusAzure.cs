@@ -1,86 +1,84 @@
-﻿using Microsoft.ServiceBus;
+
+using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 using System;
-using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-
-
-
-namespace Contmatic.Comuns.Infra.CrossCutting.ServiceBus
+namespace ConsoleApplication1
 {
-    /// <summary>
-    /// Classe que representa objetos genericos send enviados para uma fila do Azure Service Bus
-    /// </summary>
-    public class ServiceBusAzure<T>
+    class Program
     {
-
-        public ServiceBusAzure(String cCon, String queue)
+        static void Main(string[] args)
         {
-            Ccon = cCon;
-            Queue = queue;
+            Receive();
         }
 
-       
-
-        public string Ccon { get; private set; }
-
-        public string Queue { get; private set; }
-
-        public async void Post(IList lstSend)
+        private static void Sender()
         {
-            try
+            string cCon = "Endpoint=sb://kasolution.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=WK3/ZGFGl9duyTWuWitZfwMqK3ebuVGXZ7RsxFMGZFA=";
+
+
+            var nameSpace = NamespaceManager.CreateFromConnectionString(cCon);
+
+            if (!nameSpace.QueueExists("NotaFiscal"))
             {
-                if (lstSend != null)
+                nameSpace.CreateQueue("NotaFiscal");
+            }
+
+            QueueClient fila =
+               QueueClient.CreateFromConnectionString(cCon, "NotaFiscal");
+
+            int numero = 0;
+            while (numero <= 20)
+            {
+                numero++;
+                System.Threading.Thread.Sleep(3000);
+                NotaFiscal nota = new NotaFiscal
                 {
-                    if (lstSend.Count > 0)
-                    {
-                        var nameSpace = NamespaceManager.CreateFromConnectionString(Ccon);
+                    Apelido = "APODO" + numero,
+                    CNPJ_CPF = numero.ToString("00.000.000/000-00"),
+                    DataNota = DateTime.Now,
+                    Valor = numero * 3,
+                    Imposto = Convert.ToDecimal((numero * 3) * 0.10),
+                    NumeroNf = numero
 
-                        if (!nameSpace.QueueExists(Queue))
-                        {
-                            nameSpace.CreateQueue(Queue);
-                        }
+                };
 
-                        QueueClient fila =
-                           QueueClient.CreateFromConnectionString(Ccon, Queue);
-
-                        BrokeredMessage bkm = new BrokeredMessage(lstSend);
-                        await fila.SendAsync(bkm);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
+                BrokeredMessage bkm = new BrokeredMessage(nota);
+                fila.Send(bkm);
             }
         }
-
-        public void Post(T objSend)
+        private static void Receive()
         {
-            try
+            string cCon = "Endpoint=sb://kasolution.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=WK3/ZGFGl9duyTWuWitZfwMqK3ebuVGXZ7RsxFMGZFA=";
+
+            QueueClient fila =
+               QueueClient.CreateFromConnectionString(cCon, "NotaFiscal");
+
+
+            for (var r = fila.Receive(); r != null; r = fila.Receive())
             {
-                if (objSend != null)
-                {                    
-                        var nameSpace = NamespaceManager.CreateFromConnectionString(Ccon);
 
-                        if (!nameSpace.QueueExists(Queue))
-                        {
-                            nameSpace.CreateQueue(Queue);
-                        }
+                NotaFiscal nf = r.GetBody<NotaFiscal>();
 
-                        QueueClient fila =
-                           QueueClient.CreateFromConnectionString(Ccon, Queue);
-
-                        BrokeredMessage bkm = new BrokeredMessage(objSend);
-                        fila.Send(bkm);                    
+                if (nf != null)
+                {
+                    Console.WriteLine("----------------------------------------------");
+                    Console.WriteLine("Numero: " + nf.NumeroNf);
+                    Console.WriteLine("Data: " + nf.DataNota);
+                    Console.WriteLine("Valor" + nf.Valor);
+                    Console.WriteLine("Imposto" + nf.Imposto);
+                    Console.WriteLine("CNPJ" + nf.CNPJ_CPF);
+                    Console.WriteLine("_____________________________________________");
+                    r.Complete();
                 }
 
             }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
         }
+
 
     }
 }
